@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>BT21 Matching Game</title>
+	<link href="https://fonts.googleapis.com/css?family=Calligraffitti" rel="stylesheet">
+	<link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+	<script src="js/classes.js"></script>
+	<header>
+		<h1>BT21 Matching Game</h1>
+	</header>
+
+	<!-- Beginning start page -->
+	<!-- Note: not used, since button is not working -->
+	<!-- <div id = "startGame">
+		<img src="images/all-characters.jpg" alt="All Characters">
+		<p>Instructions: </p>
+		<ul>
+			<li>Match similair cards to each other</li>
+			<li>There are 4 rounds</li>
+			<li>Reach the end of each level before your timer runs out</li>
+			<li>There is one special power up card after level 1, can you find it?</li>
+			<li>Note: There is looped music in the background</li>
+		</ul>
+	</div>
+	<button type="button" id="begingame" onClick="window.location.initBoard()">Start Game</button> -->
+
+	<!-- Game over Screen -->
+	<div id="gameover">
+		<p>Game Over</p>
+	</div>
+	<p id="result"></p>
+	<button type="button" id="playagain" onClick="window.location.reload()">Play Again</button>
+
+	<!-- Player and Enemy -->
+	<div id="playerPicture">
+		<img alt="Tata" id="pPicture" src="images/tata-gun.png">
+	</div>
+
+	<div id="enemyPicture">
+		<img alt="Moya-DJ" id="ePicture" src="images/enemy1.png">
+	</div>
+
+	<div id="playerHealthBar">
+		<div id="playerHealth">100</div>
+	</div>
+	<div id="enemyHealthBar">
+		<div id="enemyHealth">100</div>
+	</div>
+	<div id="playerName">
+		- - Player - -
+	</div>
+	<div id="enemyName">
+		- - Enemy - -
+	</div>
+
+	<!-- For score, not implemented -->
+	<!-- <div id="playerScore">Score : </div> -->
+
+	<section id="game">
+		<div id="cards">
+			<div class="card">
+				<div class="face front"></div>
+				<div class="face back"></div>
+			</div> <!-- .card -->
+		</div> <!-- #cards -->
+	</section> <!-- #game -->
+
+	<script>
+		window.onload = () => {
+			/* beginGame(); */
+			initBoard();
+		}
+
+		/* Variables */
+		let level = 1;
+		let cardsRemoved = 0;
+		let cardsShuffled = false;
+		let gameOver = false;
+		let startGame = false;
+		let cards = document.querySelector("#cards");
+		let game = document.querySelector("#game");
+		let beginButton = document.querySelector("#begingame");
+		let playButton = document.querySelector("#playagain");
+		let time = 0;
+		let timer = document.querySelector("#timer");
+		let numCards = 12;
+
+		let columns = 4;
+		let playerPic = document.querySelector("#pPicture");
+		let enemyPic = document.querySelector("#ePicture");
+
+		// Health Bars
+		let playerHealth = document.querySelector("#playerHealth");
+		let enemyHealth = document.querySelector("#enemyHealth");
+		let currentEnemyHealth = 100;
+		let currentPlayerHealth = 100;
+		let playerHealthTaken = false;
+
+		// Score Counters
+		/* let scoreText = document.querySelector("#score");
+		let score = 0; */
+
+		// 6 pairs of cards in the initial deck
+		let deck = [
+			'cardR01C01', 'cardR01C01',
+			'cardR03C03', 'cardR03C03',
+			'cardR04C01', 'cardR04C01',
+			'cardR01C12', 'cardR01C12',
+			'cardR02C11', 'cardR02C11',
+			'cardR03C12', 'cardR03C12',
+		];
+
+		//initialize board
+		function initBoard() {
+			// here we pass array.sort() a *compare function* that returns a random number
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort
+			deck.sort(() => { return 0.5 - Math.random() }); // randomize the deck
+
+			// in this loop we clone the existing card on the page 11 times
+			// https://developer.mozilla.org/en-US/docs/Web/API/Node/cloneNode
+			for (let i = 0; i < numCards - 1; i++) {
+				let newCard = document.querySelector(".card").cloneNode(true);
+				document.querySelector("#cards").appendChild(newCard);
+			}
+
+			/* Now position the cards on the table, and assign a face: */
+			let cards = document.querySelectorAll("#cards > .card");
+			let index = 0; // we need this for positioning
+
+			// loop through all of the card elements and assign a face to each card
+			for (let element of cards) {
+				let x = (element.offsetWidth + 20) * (index % columns);
+				let y = (element.offsetHeight + 20) * Math.floor(index / columns);
+				element.style.transform = "translateX(" + x + "px) translateY(" + y + "px)";
+
+				// get a pattern from the shuffled deck
+				let pattern = deck.pop();
+
+				// visually apply the pattern on the card's back side.
+				// we do this by adding a class through the .classList property
+				// https://developer.mozilla.org/en-US/docs/Web/API/Element/classList
+				element.querySelector(".back").classList.add(pattern);
+
+				// embed the pattern data into the DOM element.
+				// this is an example of HTML5 Custom Data attributes
+				// http://html5doctor.com/html5-custom-data-attributes/
+				element.setAttribute("data-pattern", pattern);
+
+				// listen for the click event on each card <div> element.
+				element.onclick = cardClicked;
+				index++;
+			}
+		}
+
+		//checking if card is clicked
+		function cardClicked() {
+			// we do nothing if there are already two cards flipped.
+			if (document.querySelectorAll(".card-flipped").length > 1) return;
+
+			// inside of an event handling function, 'this' is the element that called the function
+			this.classList.add("card-flipped");
+
+			// check the pattern of both flipped card 0.7s later.    
+			if (document.querySelectorAll(".card-flipped").length == 2) {
+				// setTimeout() is used to schedule the execution a piece of code *once*
+				// https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/setTimeout
+				setTimeout(checkPattern, 700);
+			}
+		}
+
+		//checks if the cards have the same pattern throughout
+		function checkPattern() {
+			if (isSamePattern()) {
+
+				//the enemy will take a certain amount of damage if cards are matched
+				//note: commented out player health if unmatched cards
+				if (level === 1) {
+					currentEnemyHealth -= 17;
+					/* currentPlayerHealth -= 2 */
+				}
+				else {
+					currentEnemyHealth -= 12;
+					/* currentPlayerHealth -= 2 */
+				}
+				enemyHealth.innerHTML = currentEnemyHealth;
+				/* playerHealth.innerHTML = currentPlayerHealth; */
+				cardsRemoved += 2;
+
+
+				if (currentEnemyHealth < 1) {
+					enemyHealth.style.width = "0%";
+				}
+				else {
+					enemyHealth.style.width = ((currentEnemyHealth / 100) * 100) + "%";
+				}
+
+
+				// here we are using array.forEach()
+				document.querySelectorAll(".card-flipped").forEach((element) => {
+					element.classList.remove("card-flipped");
+					element.classList.add("card-removed");
+					element.addEventListener("transitionend", removeMatchedCards);
+
+				});
+			} else {
+
+				document.querySelectorAll(".card-flipped").forEach((element) => { element.classList.remove("card-flipped") });
+			}
+		}
+
+		//finds is card pattern is the same as found
+		function isSamePattern() {
+			let cards = document.querySelectorAll(".card-flipped");
+			// the dataset object holds the .data-pattern property we created for each card in initBoard()
+			let pattern1 = cards[0].dataset.pattern;
+			let pattern2 = cards[1].dataset.pattern;
+
+			// Heals player fully, but only after first round
+			if (pattern1 === 'cardR03C13' && pattern2 === 'cardR03C13') {
+				currentPlayerHealth = 100;
+				playerHealth.style.width = ((currentPlayerHealth / 100) * 100) + "%";
+				playerHealth.innerHTML = currentPlayerHealth;
+			}
+
+			//instant enemy kill
+			//error running this- works but will not proceed to next level
+			//card: koya ... card
+			/* if (pattern1 === 'cardR01C03' && pattern2 === 'cardR01C03') {
+				currentEnemyHealth = 0;
+				enemyHealth.style.width = ((currentEnemyHealth / 100) * 0) + "%";
+				enemyHealth.innerHTML = currentEnemyHealth;
+			} */
+
+			return pattern1 == pattern2;
+		}
+
+		//once cards are matched removes from table board
+		function removeMatchedCards() {
+			// another .forEach() "one-liner"
+			document.querySelectorAll(".card-removed").forEach((element) => { element.parentNode.removeChild(element); });
+
+			if (cardsRemoved === numCards) {
+
+				// Increase level and number of cards if needed
+				level++;
+				numCards = 18;
+
+				//reset removed cards
+				cardsRemoved = 0;
+
+				// new deck for levels 2-4
+				//Note: there is a card that appears twice
+				deck.push('cardR01C01', 'cardR01C01',
+					'cardR03C03', 'cardR03C03',
+					'cardR04C01', 'cardR04C01',
+					'cardR01C12', 'cardR01C12',
+					'cardR02C11', 'cardR02C11',
+					'cardR03C12', 'cardR03C12',
+					'cardR03C13', 'cardR03C13',
+					'cardR01C03', 'cardR01C03',
+					'cardR01C11', 'cardR01C11');
+
+				//Adjust play board for new cards
+				//re-initialize columns
+				columns = 6;
+				cards.style.top = "125px";
+				cards.style.left = "10px";
+				cards.style.width = "650px";
+				cards.style.height = "650px";
+				game.style.width = "600px";
+				game.style.height = "420px";
+
+				// Add card elements to game
+				let newCard = document.createElement("div");
+				newCard.setAttribute("class", "card");
+				cards.appendChild(newCard);
+				let newFront = document.createElement("div");
+				let newBack = document.createElement("div");
+				newFront.setAttribute("class", "face front");
+				newBack.setAttribute("class", "face back");
+				let card = document.querySelector(".card");
+				card.appendChild(newFront);
+				card.appendChild(newBack);
+
+				//Each level reset player health 
+				currentPlayerHealth = 100;
+				currentEnemyHealth = 100;
+				playerHealth.innerHTML = currentPlayerHealth;
+				enemyHealth.innerHTML = currentEnemyHealth;
+				playerHealth.style.width = ((currentPlayerHealth / 100) * 100) + "%";
+				enemyHealth.style.width = ((currentEnemyHealth / 100) * 100) + "%";
+
+				//Each level reset timer and choose a new picture
+				time = 0;
+				if (level === 2) {
+					playerPic.setAttribute("src", "images/player2.png");
+					enemyPic.setAttribute("src", "images/enemy2.png");
+				}
+				if (level === 3) {
+					playerPic.setAttribute("src", "images/player3.png");
+					enemyPic.setAttribute("src", "images/enemy3.png");
+				}
+				if (level === 4) {
+					playerPic.setAttribute("src", "images/final-players.png");
+					enemyPic.setAttribute("src", "images/all-enemies.png");
+				}
+
+				// Re-initialize the game board
+				initBoard();
+			}
+		}
+
+		// Timer function to handle player health and shuffle events
+		function updateTimer() {
+			//game is playing
+			if (!gameOver) {
+				time++;
+				requestAnimationFrame(updateTimer);
+
+				//each level will vary on time and how much health is taken
+				//level 1
+				if (level === 1) {
+					if ((Math.floor(time / 60) % 6) === 0 && Math.floor(time / 60) > 1 && playerHealthTaken === false) {
+						currentPlayerHealth -= 10;
+						playerHealth.innerHTML = currentPlayerHealth;
+						playerHealthTaken = true;
+						playerHealth.style.width = ((currentPlayerHealth / 100) * 100) + "%";
+					}
+					if (Math.floor(time / 60) % 6 !== 0) {
+						playerHealthTaken = false;
+					}
+					if (currentPlayerHealth <= 0) {
+						playerHealth.style.width = "0%";
+						gameOver = true;
+						endGame();
+					}
+				}
+				//level 2
+				else if (level === 2) {
+					if ((Math.floor(time / 60) % 8) === 0 && Math.floor(time / 60) > 1 && playerHealthTaken === false) {
+						currentPlayerHealth -= 7;
+						playerHealth.innerHTML = currentPlayerHealth;
+						playerHealthTaken = true;
+						playerHealth.style.width = ((currentPlayerHealth / 100) * 100) + "%";
+					}
+					if (Math.floor(time / 60) % 8 !== 0) {
+						playerHealthTaken = false;
+					}
+					if (currentPlayerHealth <= 0) {
+						playerHealth.style.width = "0%";
+						gameOver = true;
+						endGame();
+					}
+				}
+				//level 3
+				else if (level === 3) {
+					if ((Math.floor(time / 60) % 7) === 0 && Math.floor(time / 60) > 1 && playerHealthTaken === false) {
+						currentPlayerHealth -= 10;
+						playerHealth.innerHTML = currentPlayerHealth;
+						playerHealthTaken = true;
+						playerHealth.style.width = ((currentPlayerHealth / 100) * 100) + "%";
+					}
+					if (Math.floor(time / 60) % 7 !== 0) {
+						playerHealthTaken = false;
+					}
+					if (currentPlayerHealth <= 0) {
+						playerHealth.style.width = "0%";
+						gameOver = true;
+						endGame();
+					}
+				}
+				//level 4
+				else if (level === 4) {
+					if ((Math.floor(time / 60) % 4) === 0 && Math.floor(time / 60) > 1 && playerHealthTaken === false) {
+						currentPlayerHealth -= 10;
+						playerHealth.innerHTML = currentPlayerHealth;
+						playerHealthTaken = true;
+						playerHealth.style.width = ((currentPlayerHealth / 100) * 100) + "%";
+					}
+					if (Math.floor(time / 60) % 4 !== 0) {
+						playerHealthTaken = false;
+					}
+					if (currentPlayerHealth <= 0) {
+						playerHealth.style.width = "0%";
+						gameOver = true;
+						endGame();
+					}
+				}
+
+				//final level
+				if (level === 4) {
+
+					if (currentEnemyHealth <= 0) {
+						gameOver = true;
+						endGame();
+					}
+				}
+			}
+		}
+
+		//displays the endgame screen
+		function endGame() {
+			//Dont display
+			let cards = document.getElementsByClassName("card");
+			let fronts = document.getElementsByClassName("face front");
+			let backs = document.getElementsByClassName("face back");
+			for (let i = 0; i < cards.length; i++) {
+				cards[i].style.display = "none";
+				fronts[i].style.display = "none";
+				backs[i].style.display = "none";
+			}
+
+			//all game play is hidden during end game stage
+			game.style.visibility = "hidden";
+			//not implemented
+			/* document.querySelector("#startGame").style.visibility = "hidden"; */
+			document.querySelector("#cards").style.visibility = "hidden";
+			document.querySelector("#playerHealthBar").style.visibility = "hidden";
+			document.querySelector("#enemyHealthBar").style.visibility = "hidden";
+			document.querySelector("#playerHealth").style.visibility = "hidden";
+			document.querySelector("#enemyHealth").style.visibility = "hidden";
+			document.querySelector("#pPicture").style.display = "none";
+			document.querySelector("#ePicture").style.display = "none";
+			document.querySelector("#playerPicture").style.display = "none";
+			document.querySelector("#enemyPicture").style.display = "none";
+			document.querySelector("#playerName").style.display = "none";
+			document.querySelector("#enemyName").style.display = "none";
+			//not implemented
+			/* document.querySelector("#playerScore").style.display = "none"; */
+
+			//Display results of the game 
+			if (currentPlayerHealth <= 0) {
+				document.querySelector("#result").innerHTML = "You lost! Better luck next time!";
+			}
+			else if (currentEnemyHealth <= 0) {
+				document.querySelector("#result").innerHTML = "You won! Congrats!";
+			}
+
+			playButton.style.visibility = "visible";
+			document.querySelector("#result").style.display = "block";
+			document.querySelector("#gameover").style.display = "block";
+
+		}
+
+		//displays the beginning of the game screen
+		//not implemented - will display correctly
+		function beginGame() {
+			//Dont display
+			let cards = document.getElementsByClassName("card");
+			let fronts = document.getElementsByClassName("face front");
+			let backs = document.getElementsByClassName("face back");
+			for (let i = 0; i < cards.length; i++) {
+				cards[i].style.display = "none";
+				fronts[i].style.display = "none";
+				backs[i].style.display = "none";
+			}
+
+			//when in starting stage hide all game 
+			game.style.visibility = "hidden";
+			//not implemented
+			/* document.querySelector("#startGame").style.visibility = "hidden"; */
+			document.querySelector("#cards").style.visibility = "hidden";
+			document.querySelector("#playerHealthBar").style.visibility = "hidden";
+			document.querySelector("#enemyHealthBar").style.visibility = "hidden";
+			document.querySelector("#playerHealth").style.visibility = "hidden";
+			document.querySelector("#enemyHealth").style.visibility = "hidden";
+			document.querySelector("#pPicture").style.display = "none";
+			document.querySelector("#ePicture").style.display = "none";
+			document.querySelector("#playerPicture").style.display = "none";
+			document.querySelector("#enemyPicture").style.display = "none";
+			document.querySelector("#playerName").style.display = "none";
+			document.querySelector("#enemyName").style.display = "none";
+			//not implemented
+			/* document.querySelector("#playerScore").style.display = "none"; */
+
+			//Display new stuff
+			beginButton.style.visibility = "visible";
+		}
+		updateTimer();
+	</script>
+
+	<!-- Plays music -->
+	<!-- Note: this will loop through always -->
+	<audio src="media/euphoria-instrumental.mp3" autoplay loop></audio>
+
+
+</body>
+
+</html>
